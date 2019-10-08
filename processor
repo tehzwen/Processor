@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+use File::Basename;
+use Getopt::Std;
+
+#USER PID CPU MEM VSZ RSS TTY STAT START TIME(in minutes)  COMMAND
+
+#prof usernames 
+my @whiteListUsers = ("macdonellc4");
+
+sub getProcessInfo($) {
+	my $process = $_[0];
+	my @processValues = split (' ', $process);
+	my $user = $processValues[0];
+	my $pid = $processValues[1];
+	my $time = $processValues[6];
+	my $command = $processValues[7];
+	my $fullUserName;
+	my $choppedUser;
+	my $minutes;
+	my @timeArray;
+
+	#getent passwd | cut -d':' -f1 | sort 
+	#gives sorted list of strings of usernames
+	#grep into it with the current username for full username (incase of +)
+	my $isSystemD;
+	#check for root first since lots of processes run as root
+	if ($user ne "root") {
+		chop ($user);
+		$fullUserName = `getent passwd | cut -d':' -f1 | grep $user`;
+		chomp($fullUserName);
+
+		if ($fullUserName ~~ @whiteListUsers) {
+		} else {
+			#print "***********************\n";
+			#print $pid, ", ", $fullUserName, ", ", $time, ", ", $command, "\n";
+			
+			@timeArray = split (':', $time);
+			$timeArray[1] += 0; #add 0 to the string causes it to become number
+			$timeArray[0] += 0; 		
+
+			$isSystemD = $command =~ /systemd/;
+			#print $isSystemD, "\n";
+
+			if ($timeArray[1] gt 0 && not $isSystemD) {
+				print $pid, ", ", $fullUserName, ", ", $time, ", ", $command, "\n";
+			}
+		}
+	}	
+}
+
+sub getProcesses() {
+	my $processes = `ps -aef`;
+	#print $processes;
+	my @processArray = split ('\n', $processes);
+	#print @processArray[0];
+	shift @processArray;
+
+	foreach my $process(@processArray) {
+		getProcessInfo($process);
+	}
+}
+
+getProcesses();
