@@ -61,6 +61,19 @@ sub getProcesses() {
 		getProcessInfo($process, 0);
 	}
 }
+
+# Purpose: write to emaillog file to keep track of emails being sent out
+# ARGS
+# 0: logString -> (string) the string we wish to write in the file
+sub writeToLogFile($) {
+	my $logString = $_[0];
+	my $fileName = 'emailLog.txt';
+	open(my $fh, '>>', $fileName) or die "Could not open file $fileName ";
+	say $fh $logString;
+	close $fh;
+	print "Writing to file $fileName, successfully completed\n";
+}
+
 # Purpose: Read in the API key for the email function and return it
 # ARGS
 # 0: arg -> (string) filename to read from
@@ -94,5 +107,6 @@ sub sendEmail($$$$) {
 	my $request = `curl -X POST https://processor-5f79.restdb.io/mail -H 'Content-Type: application/json' -H 'x-apikey: $apiKey' -d '{"to":"$toAddress","subject":"$subject", "html":"<p>This is an automated message to let you know that the process with pid $processID has been running on the student server (students.cs.macewan.ca) for $time. Please use the command <b>kill $processID</b> to end the process. Thanks!</p>"}'`;
 	print "$request\n";
 }
-sendEmail('shawz2@mymacewan.ca','Student Server',4898, "01:45:23");
+writeToLogFile("this is the message we want to write\n");
+#sendEmail('shawz2@mymacewan.ca','Student Server',4898, "01:45:23");
 #getProcesses();
