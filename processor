@@ -10,6 +10,10 @@ use Getopt::Std;
 #prof usernames 
 my @whiteListUsers = ("macdonellc4");
 
+# Purpose: get information for the process, check if it is running for too long and is not part of whitelisted users' processes
+# ARGS
+# 0: process -> (string) string containing details on the process
+# 1: hours -> (int) value of how many hours we want to check for
 sub getProcessInfo($$) {
 	my $process = $_[0];
 	my $hours = $_[1];
@@ -47,7 +51,7 @@ sub getProcessInfo($$) {
 		}
 	}	
 }
-
+# Purpose: main function, runs helper functions to get process information
 sub getProcesses() {
 	my $processes = `ps -aef`;
 	my @processArray = split ('\n', $processes);
@@ -57,7 +61,10 @@ sub getProcesses() {
 		getProcessInfo($process, 0);
 	}
 }
-
+# Purpose: Read in the API key for the email function and return it
+# ARGS
+# 0: arg -> (string) filename to read from
+# Returns: (string) apiKey
 sub getAPIKeyFromFile($) {
 	my $arg = $_[0];	
 	my @fileLines;
@@ -72,6 +79,12 @@ sub getAPIKeyFromFile($) {
 	return $fileLines[0];
 }
 
+# Purpose: Send an email to an address with a subject and PID and time of the process
+# ARGS
+# 0: toAddress -> (string) email address to be sent to
+# 1: subject -> (string) subject of the email
+# 2: processID -> (int) process id of the process that is being reported
+# 3: time -> (string) representation of the elapsed time of the process in HH:MM:SS
 sub sendEmail($$$$) {
 	my $apiKey = getAPIKeyFromFile("apiKey");
 	my $toAddress = $_[0];
@@ -79,10 +92,7 @@ sub sendEmail($$$$) {
 	my $processID = $_[2];
 	my $time = $_[3];
 	my $request = `curl -X POST https://processor-5f79.restdb.io/mail -H 'Content-Type: application/json' -H 'x-apikey: $apiKey' -d '{"to":"$toAddress","subject":"$subject", "html":"<p>This is an automated message to let you know that the process with pid $processID has been running on the student server (students.cs.macewan.ca) for $time. Please use the command <b>kill $processID</b> to end the process. Thanks!</p>"}'`;
-
 	print "$request\n";
-	
-
 }
 sendEmail('shawz2@mymacewan.ca','Student Server',4898, "01:45:23");
 #getProcesses();
