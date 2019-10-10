@@ -10,8 +10,9 @@ use Getopt::Std;
 #prof usernames 
 my @whiteListUsers = ("macdonellc4");
 
-sub getProcessInfo($) {
+sub getProcessInfo($$) {
 	my $process = $_[0];
+	my $hours = $_[1];
 	my @processValues = split (' ', $process);
 	my $user = $processValues[0];
 	my $pid = $processValues[1];
@@ -19,7 +20,6 @@ sub getProcessInfo($) {
 	my $command = $processValues[7];
 	my $fullUserName;
 	my $choppedUser;
-	my $minutes;
 	my @timeArray;
 
 	#getent passwd | cut -d':' -f1 | sort 
@@ -34,17 +34,14 @@ sub getProcessInfo($) {
 
 		if ($fullUserName ~~ @whiteListUsers) {
 		} else {
-			#print "***********************\n";
-			#print $pid, ", ", $fullUserName, ", ", $time, ", ", $command, "\n";
 			
 			@timeArray = split (':', $time);
 			$timeArray[1] += 0; #add 0 to the string causes it to become number
 			$timeArray[0] += 0; 		
 
 			$isSystemD = $command =~ /systemd/;
-			#print $isSystemD, "\n";
 
-			if ($timeArray[1] gt 0 && not $isSystemD) {
+			if ($timeArray[1] gt $hours && not $isSystemD) {
 				print $pid, ", ", $fullUserName, ", ", $time, ", ", $command, "\n";
 			}
 		}
@@ -53,14 +50,39 @@ sub getProcessInfo($) {
 
 sub getProcesses() {
 	my $processes = `ps -aef`;
-	#print $processes;
 	my @processArray = split ('\n', $processes);
-	#print @processArray[0];
 	shift @processArray;
 
 	foreach my $process(@processArray) {
-		getProcessInfo($process);
+		getProcessInfo($process, 0);
 	}
 }
 
-getProcesses();
+sub getAPIKeyFromFile($) {
+	my $arg = $_[0];	
+	my @fileLines;
+	open(my $data, "<", $arg)
+		or die print "opening file failed";
+
+	while (my $line = <$data>){
+		chomp $line;
+		push @fileLines, $line;
+	}
+	close $data;
+	return $fileLines[0];
+}
+
+sub sendEmail($$$$) {
+	my $apiKey = getAPIKeyFromFile("apiKey");
+	my $toAddress = $_[0];
+	my $subject = $_[1];
+	my $processID = $_[2];
+	my $time = $_[3];
+	my $request = `curl -X POST https://processor-5f79.restdb.io/mail -H 'Content-Type: application/json' -H 'x-apikey: $apiKey' -d '{"to":"$toAddress","subject":"$subject", "html":"<p>This is an automated message to let you know that the process with pid $processID has been running on the student server (students.cs.macewan.ca) for $time. Please use the command <b>kill $processID</b> to end the process. Thanks!</p>"}'`;
+
+	print "$request\n";
+	
+
+}
+sendEmail('shawz2@mymacewan.ca','Student Server',4898, "01:45:23");
+#getProcesses();
