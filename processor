@@ -4,11 +4,12 @@ use warnings;
 use strict;
 use File::Basename;
 use Getopt::Std;
+use Data::Dumper;
 
 #USER PID CPU MEM VSZ RSS TTY STAT START TIME(in minutes)  COMMAND
 
 #prof usernames 
-my @whiteListUsers = ("macdonellc4");
+my @whiteListUsers = ("macdonellc4", "abbasn3", "antonc", "boersn", "brookwellb", "elhajjm", "coulsonj6", "davisj80", "elmorsym", "husbys", "indratmo", "jickelst", "kriegera3", "meleshkor", "pangc7");
 
 # Purpose: get information for the process, check if it is running for too long and is not part of whitelisted users' processes
 # ARGS
@@ -26,6 +27,12 @@ sub getProcessInfo($$) {
 	my $choppedUser;
 	my @timeArray;
 
+	my %badProcessDetails = (
+		'name' => undef,
+		'time' => undef,
+		'command' => undef,
+		'pid' => undef
+	);
 	#getent passwd | cut -d':' -f1 | sort 
 	#gives sorted list of strings of usernames
 	#grep into it with the current username for full username (incase of +)
@@ -38,27 +45,59 @@ sub getProcessInfo($$) {
 
 		if ($fullUserName ~~ @whiteListUsers) {
 		} else {
-			
 			@timeArray = split (':', $time);
 			$timeArray[1] += 0; #add 0 to the string causes it to become number
 			$timeArray[0] += 0; 		
-
 			$isSystemD = $command =~ /systemd/;
 
-			if ($timeArray[1] gt $hours && not $isSystemD) {
+			if ($timeArray[0] > $hours && not $isSystemD) {
 				print $pid, ", ", $fullUserName, ", ", $time, ", ", $command, "\n";
+				$badProcessDetails{'name'} = $fullUserName;
+				$badProcessDetails{'time'} = $time;
+				$badProcessDetails{'command'} = $command;
+				$badProcessDetails{'pid'} = $pid;
+				writeToLogFile(localtime(). ", ". $pid. ", ". $fullUserName. ", ". $time. ", ". $command);
 			}
 		}
-	}	
+	}
+	return \%badProcessDetails;	
 }
 # Purpose: main function, runs helper functions to get process information
 sub getProcesses() {
 	my $processes = `ps -aef`;
 	my @processArray = split ('\n', $processes);
 	shift @processArray;
+	my %badProcessHash;
 
+	print localtime()." Checking processes\n";
+	writeToLogFile("***** Process Check at ".localtime()."*****");
 	foreach my $process(@processArray) {
-		getProcessInfo($process, 0);
+		my $tempRef = getProcessInfo($process, 0);
+		
+		#print Dumper($tempRef);
+		if ($tempRef->{'name'}) {
+			my $name = $tempRef->{'name'};
+			if (!%badProcessHash->{"$name"}) {
+				my %tempHash = %$tempRef;
+				%badProcessHash->{"$name"} = [];		
+				push $badProcessHash{"$name"}, \%tempHash;
+			} else {
+				my %tempHash = %$tempRef;
+				push $badProcessHash{"$name"}, \%tempHash;
+			}
+		}
+	}
+
+	for my $key (keys %badProcessHash) {
+		my @tempProcArray = @{$badProcessHash{$key}};
+		my $length = scalar @tempProcArray;
+		my $messageString = "<p>This is an automated message to let you know that the following processes are running on the student server:<br/><ul>";
+
+		for (my $i = 0; $i < $length; $i++) {
+			$messageString = $messageString."<li><b>PID:</b> $tempProcArray[$i]->{'pid'}, <b>Command:</b> $tempProcArray[$i]->{'command'}, <b>Time running:</b> $tempProcArray[$i]->{'time'}</li>";
+		}
+		$messageString = $messageString."</ul><br/>Please use the command <b>kill <i>PID</i></b> to end the processes. Thanks!<br/><br/> If your process is meant to run this long please ignore this email or if you are receiving this email by mistake I apologize.<br/><br/> -A Perl script written by Zach Shaw</p>";
+		sendEmail($key.'@mymacewan.ca', 'Student Server', $messageString);
 	}
 }
 
@@ -68,7 +107,9 @@ sub getProcesses() {
 sub writeToLogFile($) {
 	my $logString = $_[0];
 	my $fileName = 'emailLog.txt';
-	open(my $fh, '>>', $fileName) or die "Could not open file $fileName ";
+	my $dir = `ls`;
+	print "Current dir contents: $dir\n";
+	open(my $fh, '>>', $fileName) or die "Could not open file '$fileName' $!";
 	say $fh $logString;
 	close $fh;
 	print "Writing to file $fileName, successfully completed\n";
@@ -98,15 +139,22 @@ sub getAPIKeyFromFile($) {
 # 1: subject -> (string) subject of the email
 # 2: processID -> (int) process id of the process that is being reported
 # 3: time -> (string) representation of the elapsed time of the process in HH:MM:SS
-sub sendEmail($$$$) {
+sub sendEmail($$$) {
 	my $apiKey = getAPIKeyFromFile("apiKey");
 	my $toAddress = $_[0];
 	my $subject = $_[1];
-	my $processID = $_[2];
-	my $time = $_[3];
-	my $request = `curl -X POST https://processor-5f79.restdb.io/mail -H 'Content-Type: application/json' -H 'x-apikey: $apiKey' -d '{"to":"$toAddress","subject":"$subject", "html":"<p>This is an automated message to let you know that the process with pid $processID has been running on the student server (students.cs.macewan.ca) for $time. Please use the command <b>kill $processID</b> to end the process. Thanks!</p>"}'`;
+	my $message = $_[2];
+	my $request = `curl -X POST https://processor-5f79.restdb.io/mail -H 'Content-Type: application/json' -H 'x-apikey: $apiKey' -d '{"to":"$toAddress","subject":"$subject", "html":"$message"}'`;
 	print "$request\n";
 }
-writeToLogFile("this is the message we want to write\n");
-#sendEmail('shawz2@mymacewan.ca','Student Server',4898, "01:45:23");
-#getProcesses();
+
+sub main() {
+	while (1) {
+		getProcesses();
+		sleep(3600);
+	}
+}
+
+main();
+#writeToLogFile("this is the message we want to write\n");
+#sendEmail('shawz2@mymacewan.ca','Student Server',"<b>oy mate</b>");
