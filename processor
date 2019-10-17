@@ -71,6 +71,10 @@ sub getProcesses() {
 
 	print localtime()." Checking processes\n";
 	writeToLogFile("***** Process Check at ".localtime()."*****");
+	
+	#renew permissions on student server
+	my $renewal = `kinit -V -R`;
+	print "$renewal\n";
 	foreach my $process(@processArray) {
 		my $tempRef = getProcessInfo($process, 0);
 		
